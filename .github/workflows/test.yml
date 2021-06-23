@@ -51,8 +51,31 @@ jobs:
             pip install tox tox-gh-actions
         - name: Run integration tests
           run: tox -eintegration
+    changedfiles:
+      runs-on: ubuntu-latest
+      outputs:
+        # all files and rst files changed
+        all: ${{ steps.changes.outputs.all }}
+        rst: ${{ steps.changes.outputs.rst }}
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v2
+          with:
+            # necessary to work with amended commits
+            fetch-depth: 2
+        - name: Get changed files
+          id: changes
+          run: |
+            echo "::set-output name=rst::$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep .rst$ )"
+            echo "::set-output name=all::$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }})"
+            echo "$all"
+            echo "$rst"
     twine:
       runs-on: ubuntu-latest
+      # requires previous job to run first
+      needs: changedfiles
+      # if only there are changed .rst files
+      if: ${{ needs.changedfiles.outputs.rst }}
       steps:
         - uses: actions/checkout@v2
         - name: Setup Python
@@ -64,4 +87,5 @@ jobs:
             python -m pip install --upgrade pip
             pip install tox tox-gh-actions
         - name: Run twine-check
-          run: tox -etwine
+          run: |
+            tox -etwine
